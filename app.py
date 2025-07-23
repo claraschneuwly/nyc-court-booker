@@ -1,174 +1,402 @@
-import sys
+"""
+NYC Tennis Court Auto-Booking Script
+------------------------------------
+
+Automates the process of booking tennis courts through NYC Parks' reservation system.
+Includes location-specific flows, payment form handling, and optional multi-court logic.
+
+Environment variables expected (loaded via .env):
+- full-name
+- email
+- address-line-one
+- city
+- postcode
+- phone-number
+- permit-number (for Central Park)
+- card-number
+- expiry-month
+- expiry-year
+- cvv
+"""
+
+# import sys
+import time
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
+# from webdriver_manager.chrome import ChromeDriverManager
+import os
+import logging
 from dotenv import load_dotenv
-import time
-from datetime import datetime, timedelta
-import schedule
-import os
 load_dotenv()
-import os
 
-# next_tuesday = (datetime.today() + timedelta( (1-datetime.today().weekday()) % 7 )).strftime('%Y-%m-%d')
-desired_date = "2025-05-20"  # Format: YYYY-MM-DD
-date_button_xpath = f"//a[@data-date='{desired_date}']"
+# target_date = "2025-08-22"  # or dynamically compute next desired date
+# target_hour = 19 # Must be in 24-hour format (e.g. 19 for 7PM)
+# target_loc = 12
 
-# booking_time = "18:00-20:00"
-# url = '{}/{}/by-time/slot/{}'.format((os.environ.get("url")), next_tuesday, booking_time)
-url="https://www.nycgovparks.org/tennisreservation/availability/12"
-booking_time = "6:00 PM"  # Adjust as needed
-time_slot_xpath = f"//a[contains(text(), '{booking_time}')]"
+###### INFO ######
+# Central Park = 12 : 6 Outdoor Har-Thru courts, 1 month is advance, last res @ 7pm, res open @ 6am ?
+# Sutton East = 13: 2 Inside Clay courts, 1 week in advance, last res @ 8pm, res open @ midnight ?
+# Riverside Park (119 Street) = 2 : 2 Outdoor Hard courts, 1 week in advance, last res @ 7pm, res open @ midnight ?, recently resurfaced
+# MCCarren = 11: 2 Outdoor Hard courts, 1 week in advance, last res @ 6pm,
 
-def attempt_court_booking(url):
-  # browser + chrome_options for production version
-  # chrome_options = add_chrome_options_for_heroku()
-  # browser = webdriver.Chrome(service=Service(os.environ.get("CHROMEDRIVER_PATH")), options=chrome_options)
-  # browser for dev env
-  service = Service('./chromedriver')
-  browser = webdriver.Chrome(service=service)
-  browser.get(url)
 
-  if is_court_confirmed(browser):
-    confirm_payment(browser)
-  else:
-    return
+# Configure the logging system
+logging.basicConfig(
+    filename="court_booking.log", # Use None for console-only, or use "court_booking.log"
+    level=logging.INFO, # Set to DEBUG for more verbosity
+    format="%(asctime)s — %(levelname)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
-def add_chrome_options_for_heroku():
-  chrome_options = webdriver.ChromeOptions()
-  chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
-  chrome_options.add_argument("--headless")
-  chrome_options.add_argument("--disable-dev-shm-usage")
-  chrome_options.add_argument("--no-sandbox")
-  return chrome_options
+logger = logging.getLogger(__name__)
 
-def get_list_of_courts(browser):
-  # WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//div[@class=' css-thk6w-control']"))).click()
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, date_button_xpath))).click() # 
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, time_slot_xpath))).click()
-  time.sleep(2)
 
-def login(browser):
-  # WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='username']"))).send_keys(os.environ.get("username"))
-  # WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='password']"))).send_keys(os.environ.get("password"))
-  # showmore_link = WebDriverWait(browser, 20).until(EC.element_to_be_clickable((By.XPATH, ".//button[contains(@class,'Button__StyledButton-sc-5h7i9w-1 cEQnin SharedLoginComponent__LoginButton-sc-hdtxi2-5 htvyQa') and @type='submit']")))
-  # showmore_link.click()
-  # Look for the first green "Reserve this time" button available
-  reserve_button = WebDriverWait(browser, 20).until(
-      EC.element_to_be_clickable((By.XPATH, "//a[contains(@class, 'assign_someone') and contains(text(), 'Reserve this time')]"))
-  )
-  reserve_button.click()
+def click_first_available_slot_at_(browser, target_date, target_hour, target_loc, num_courts=6):
+    """
+    Attempts to book the first available court slot at the given hour and date.
 
-  time.sleep(2)
+    Args:
+        browser (webdriver.Chrome): The active Selenium browser session.
+        target_date (str): The booking date in YYYY-MM-DD format.
+        target_hour (int): The desired hour in 24-hour format.
+        num_courts (int): Number of courts available at the location.
 
-def is_court_available(browser): # change to book any court available
-  for x in range(1, 11):
-    court_div = '//div[text()="{} {}"]'.format(os.environ.get("court-name"), x)
-    if len(browser.find_elements(By.XPATH, court_div)) > 0:
-      print("court found")
-      browser.find_element(By.XPATH, court_div).click()
-      time.sleep(2)
-      return True
-  print("court unavailable")
-  return False
+    Returns:
+        bool: True if a slot was successfully booked, False otherwise.
+    """
+    target_row = target_hour - 5
+    xpath_prefix = f"//*[@id='{target_date}']/table/tbody/tr[{target_row}]/td" # row 14 is for 7pm
+    
+    for col in range(2, num_courts+2):
+        try:
+            browser.save_screenshot(f"column_{col}_debug.png")
 
-def confirm_booking(browser):
-  showmore_link2 = WebDriverWait(browser, 20).until(EC.element_to_be_clickable((By.XPATH, ".//button[contains(@class,'Button__StyledButton-sc-5h7i9w-1 cEQnin') and @type='button']")))
-  showmore_link2.click()
-  time.sleep(2)
+            full_xpath = f"{xpath_prefix}[{col}]/a"
+            # Instead of going straight to element_to_be_clickable, test presence and debug:
+            elements = browser.find_elements(By.XPATH, full_xpath)
+            if not elements:
+                logger.debug(f"No element found at {full_xpath}")
+                continue
+            reserve_button = WebDriverWait(browser, 5).until(
+                EC.presence_of_element_located((By.XPATH, full_xpath))
+            )
 
-def agree_to_terms_and_conditions(browser):
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(., 'Continue')]"))).click()
+            browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", reserve_button)
+            time.sleep(0.3)  # brief pause to stabilize layout
 
-  ele = WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//div[@class='TermsModalComponent__Background-sc-1g34mtg-4 kARssu']")))
-  browser.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", ele)
+            parent = reserve_button
+            while parent:
+                try:
+                    parent = parent.find_element(By.XPATH, "..")
+                    tag = parent.tag_name
+                    id_ = parent.get_attribute("id")
+                    class_ = parent.get_attribute("class")
+                    displayed = parent.is_displayed()
+                    logger.debug(f"Parent <{tag} id='{id_}' class='{class_}'> → displayed: {displayed}")
+                except Exception:
+                    break
 
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(., 'I Agree')]"))).click()
+            logger.info(f"Found element in column {col}, trying to click...")
 
-def fill_out_payment_details_old(browser):
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='billingFirstName']"))).send_keys(os.environ.get("first-name"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='billingLastName']"))).send_keys(os.environ.get("last-name"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='billingAddressLineOne']"))).send_keys(os.environ.get("billing-address-line-one"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='billingCity']"))).send_keys(os.environ.get("billing-city"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='billingPostcode']"))).send_keys(os.environ.get("billing-postcode"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='cardholderName']"))).send_keys(os.environ.get("cardholder-name"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='cardNumber']"))).send_keys(os.environ.get("card-number"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='expiryDate']"))).send_keys(os.environ.get("expiry-date"))
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='securityCode']"))).send_keys(os.environ.get("security-code"))
+            logger.debug("Checking visibility and display of the element...")
+            is_displayed = reserve_button.is_displayed()
+            is_enabled = reserve_button.is_enabled()
+            logger.debug(f"Displayed: {is_displayed}, Enabled: {is_enabled}")
+            
+            reserve_button.click()
 
-def fill_out_payment_details(browser):
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//input[@name='securityCode']"))).send_keys(os.environ.get("security-code"))
+            # Wait for navigation and click "Confirm and Enter Player Details"
+            continue_button_xpath = '//*[@id="no_account"]/div/input'
+            continue_button = WebDriverWait(browser, 10).until(
+                EC.element_to_be_clickable((By.XPATH, continue_button_xpath))
+            )
+            continue_button.click()
+            logger.info("Clicked 'Confirm and Enter Player Details'")
+            if target_loc == 12:
+              WebDriverWait(browser, 10).until(
+                EC.presence_of_element_located((By.ID, "permit-number1"))
+              )
+            elif target_loc == 11:
+              WebDriverWait(browser, 10).until(
+                EC.presence_of_element_located((By.ID, "single_play_exist_2"))
+              )
 
-def pay_for_booking(browser):
-  WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[@class='PayNowButton__PayText-sc-1wm3jnf-2 fNBsUK']"))).click()
+            return True
+        except Exception as e:
+            logger.warning(f"Column {col} failed: {e}")
+            browser.save_screenshot(f'error_column_{col}.png')
+            continue
 
-def click_cookies_button(browser):
+    logger.info("No available courts at target time")
+    return False
+
+
+def fill_out_player_details(browser):
+  """
+  Fills out the player reservation form for McCarren, Sutton East, or Riverside Park (119 Street) courts.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+
+  Raises:
+      EnvironmentError: If any required environment variable is missing.
+  """
+  required_env_vars = [
+      "full-name", "email", "address-line-one",
+      "city", "postcode", "phone-number"
+  ]
+
+  for var in required_env_vars:
+      if not os.environ.get(var):
+          raise EnvironmentError(f"Missing environment variable: {var}")
+      
+  WebDriverWait(browser, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='single_play_exist_2']"))).click() # click this option
+  print("Filling player name...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "name"))).send_keys(os.environ.get("full-name"))
+  print("Filling email...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "email"))).send_keys(os.environ.get("email"))
+  print("Filling address...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "address"))).send_keys(os.environ.get("address-line-one"))
+  print("Filling city...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "city"))).send_keys(os.environ.get("city"))
+  print("Filling zip...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "zip"))).send_keys(os.environ.get("postcode"))
+  print("Filling phone...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "phone"))).send_keys(os.environ.get("phone-number"))
+  browser.save_screenshot('fill_out_player_details.png')
+
+def fill_out_player_details_central_park(browser):
+  """
+  Fills out the Central Park-specific player reservation form.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+
+  Raises:
+      EnvironmentError: If any required environment variable is missing.
+  """
+  required_env_vars = [
+      "permit-number", "full-name", "email", "address-line-one",
+      "city", "postcode", "phone-number"
+  ]
+
+  for var in required_env_vars:
+      if not os.environ.get(var):
+          raise EnvironmentError(f"Missing environment variable: {var}")
+      
+  print("Filling permit-number...")
+  WebDriverWait(browser, 15).until(EC.visibility_of_element_located((By.ID, "permit-number1"))).send_keys(os.environ.get("permit-number"))
+  print("Filling player name...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "name1"))).send_keys(os.environ.get("full-name"))
+  print("Filling email...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "email"))).send_keys(os.environ.get("email"))
+  print("Filling address...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "address"))).send_keys(os.environ.get("address-line-one"))
+  print("Filling city...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "city"))).send_keys(os.environ.get("city"))
+  print("Filling zip...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "zip"))).send_keys(os.environ.get("postcode"))
+  print("Filling phone...")
+  WebDriverWait(browser, 5).until(EC.visibility_of_element_located((By.ID, "phone"))).send_keys(os.environ.get("phone-number"))
+  browser.save_screenshot('fill_out_player_details_central_park.png')
+
+def ensure_two_players_selected(browser):
+  """
+  Ensures that the '2 players' option is selected in the reservation form.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+
+  Raises:
+      Exception: If the option is not found or not interactable.
+  """
   try:
-    cookies_button = WebDriverWait(browser, 20).until(
-        EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))
-    )
-    cookies_button.click()
+      two_players_button = WebDriverWait(browser, 10).until(
+          EC.presence_of_element_located((By.XPATH, "//*[@id='num_players_2']"))
+      )
+      if not two_players_button.is_selected():
+          print("Selecting '2 players' button...")
+          two_players_button.click()
+      else:
+          print("'2 players' already selected.")
+  except Exception as e:
+      print(f"Error checking/clicking '2 players' button: {e}")
+      browser.save_screenshot("error_selecting_two_players.png")
+      raise
+
+def click_continue_to_payment_button(browser):
+  """
+  Clicks the 'Continue to Payment' button after filling out the reservation form.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+
+  Returns:
+      bool: True if the button click was successful, False otherwise.
+  """
+  try:
+    WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='form_with_validation']/input[2]"))).click()
+    browser.save_screenshot('success_click_continue_to_payment_button.png')
     return True
   except Exception as e:
-    print(f"Error clicking cookies button: {e}")
-    return False
+    print(f"Error clicking continue to payment: {e}")
+    browser.save_screenshot('error_click_continue_to_payment_button.png')
+  
+def fill_out_payment_details(browser):
+  """
+  Fills out the credit card payment form inside the payment iframe.
 
-def is_court_confirmed(browser):
-  click_cookies_button(browser)
-  get_list_of_courts(browser)
-  if is_court_available(browser):
-    confirm_booking(browser)  
-    login(browser)
-    # booking must be confirmed again after logging in
-    get_list_of_courts(browser)
-    is_court_available(browser)
-    confirm_booking(browser)
-    time.sleep(2)
-    return True  
-  else:
-    return False
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
 
-def can_amount_be_paid_with_credit(browser):
-  if len(browser.find_elements(By.XPATH, '//span[text()="Use full credit balance"]')) > 0:
-    print("credit available to pay for court")
-    return True
-  return False
-
-def pay_for_court_with_credit(browser):
-    browser.find_element(By.XPATH, '//span[text()="Use full credit balance"]').click()
-    print("paying using credit")
-    time.sleep(2)
-    browser.find_element(By.XPATH, '//span[text()="Confirm booking"]').click()
-    time.sleep(10)
-    print("booking confirmed")
-      
-def confirm_payment(browser):
-  print("confirming payment")
-  if (can_amount_be_paid_with_credit(browser)):
-    pay_for_court_with_credit(browser)
-    return
-  print("not enough credit available to pay for court")
-  fill_out_payment_details(browser)
-  time.sleep(2)
-  pay_for_booking(browser)
-  print("paying for booking....")
-  time.sleep(10)
-
-def schedule_job():
- schedule.every(1).minutes.do(book_court)
- while True:
-  schedule.run_pending()
-  time.sleep(1)
-
-def book_court():
+  Raises:
+      Exception: If any field is not found or not interactable.
+  """
+  print("fill_out_payment_details")
   try:
-    attempt_court_booking(url)
+    # Wait for the iframe to appear
+    iframe = WebDriverWait(browser, 20).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "iframe.fancybox-iframe"))
+    )
+    print("Iframe found, switching context...")
+    browser.switch_to.frame(iframe)
+    print("Payment form visible")
+    WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cc_number']"))).send_keys(os.environ.get("card-number"))
+    WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='expdate_month']"))).send_keys(os.environ.get("expiry-month"))
+    WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='expdate_year']"))).send_keys(os.environ.get("expiry-year"))
+    WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cvv2_number']"))).send_keys(os.environ.get("cvv"))
+    print("Payment form filled")
+  except Exception as e:
+    print(f"Error filling payment: {e}")
+     
+
+def click_pay_now_button(browser):
+  """
+  Clicks the final 'Pay Now' button to submit the payment.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+  """
+  WebDriverWait(browser, 10).until(
+    EC.element_to_be_clickable((By.ID, "btn_pay_cc"))
+  ).click()
+  print("Clicked Pay Now")
+
+
+def activate_tab(browser, target_date):
+  """
+  Activates the calendar tab for the specified date, ensuring its courts are visible.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+      target_date (str): The booking date in YYYY-MM-DD format.
+  """
+  tab_xpath = f"//a[@href='#{target_date}' and @data-toggle='tab']"
+  tab = WebDriverWait(browser, 10).until(
+      EC.element_to_be_clickable((By.XPATH, tab_xpath))
+  )
+  browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", tab)
+  tab.click()
+  WebDriverWait(browser, 10).until(
+      EC.visibility_of_element_located((By.ID, target_date))
+  )
+  print(f"Activated tab for {target_date}")
+
+def handle_payment_confirmation(browser):
+  """
+  Handles post-payment confirmation steps, such as detecting iframe closure
+  and optionally the confirmation page.
+
+  Args:
+      browser (webdriver.Chrome): The active Selenium browser session.
+  """
+  try:
+      # Exit the payment iframe (if still inside)
+      browser.switch_to.default_content()
+
+      # Wait for the iframe to disappear (Fancybox closes)
+      WebDriverWait(browser, 30).until(
+          EC.invisibility_of_element_located((By.CSS_SELECTOR, "iframe.fancybox-iframe"))
+      )
+      print("Payment iframe closed, assuming success")
+
+      # Optionally, wait for final confirmation URL
+      # try:
+      #     WebDriverWait(browser, 15).until(
+      #         EC.url_contains("/tennisreservation/thankyou")
+      #     )
+      #     print("Payment completed successfully.")
+      # except:
+      #     print("Warning: Confirmation page not detected. Manual check may be required.")
+
+      # Screenshot confirmation
+      browser.save_screenshot("success.png")
+      print("Successfully booked!")
+
+  except Exception as e:
+      print(f"Error during payment confirmation: {e}")
+      browser.save_screenshot("payment_confirmation_error.png")
+
+def attempt_court_booking(target_date, target_hour, target_loc):
+  """
+  Opens the reservation site and attempts to book a court based on input parameters.
+
+  Args:
+      target_date (str): The booking date in YYYY-MM-DD format.
+      target_hour (int): Desired hour in 24-hour format (e.g., 19 for 7 PM).
+      target_loc (int): Court location ID.
+
+  Returns:
+      None
+  """
+  service = Service('./chromedriver')
+  browser = webdriver.Chrome(service=service)
+  browser.get(f"https://www.nycgovparks.org/tennisreservation/availability/{target_loc}#{target_date}")
+
+  activate_tab(browser, target_date)
+
+  num_courts = 6 if target_loc == 12 else 2
+  court_available = click_first_available_slot_at_(browser, target_date, target_hour, target_loc, num_courts)
+
+  if court_available:
+      if target_loc == 12: # CP
+        ensure_two_players_selected(browser)
+        fill_out_player_details_central_park(browser)
+      else: # McCarren, Sutton East or Riverside 119st
+        fill_out_player_details(browser)
+      
+      click_continue_to_payment_button(browser)
+      fill_out_payment_details(browser)
+      click_pay_now_button(browser)
+
+      # Handle post-payment confirmation and success
+      handle_payment_confirmation(browser)
+
+  else:
+      return
+  
+
+def book_court(target_date, target_hour, target_loc):
+  """
+  Entry point wrapper that attempts a court booking and handles errors.
+
+  Args:
+      target_date (str): The booking date in YYYY-MM-DD format.
+      target_hour (int): Desired hour in 24-hour format.
+      target_loc (int): Court location ID.
+
+  Returns:
+      bool: True if booking succeeded, False otherwise.
+  """
+  try:
+    attempt_court_booking(target_date, target_hour, target_loc)
+    return True
   except Exception as ex:
-    # add proper error handling
-    print(ex)
-    sys.exit(0)
+    print(f"Booking failed: {ex}")
+    # sys.exit(0)
+    return False
 
 # book_court()
-schedule_job()
