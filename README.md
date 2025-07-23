@@ -18,16 +18,15 @@ This project is a Python automation bot using Selenium to book tennis courts on 
 
 Clone this repo and adapt it to your needs.
 ```bash
-git clone https://github.com/your-username/nyc-tennis-booking-bot.git
+git clone https://github.com/claraschneuwly/nyc-court-booker.git
 cd nyc-tennis-booking-bot
 ```
-
-### How to run program:
 
 ## 1. Environment Variables
 
 Create a `.env` file in the project root with the following:
 
+```
 full-name=Your Full Name
 email=your@email.com
 address-line-one=123 Main St
@@ -39,8 +38,9 @@ card-number=4111111111111111
 expiry-month=12
 expiry-year=2025
 cvv=123
+```
 
-(Note: Never commit your `.env` to version control.)
+Note: Never commit your `.env` to version control.
 
 ### 2. Install dependencies
 
@@ -121,10 +121,10 @@ This will:
 
 ## Relevant info about the courts
 
-- Central Park = 12 : 6 Outdoor Har-Thru courts, 1 month is advance, last slot @ 7pm, res open @ 6am ?
-- Sutton East = 13: 2 Inside Clay courts, 1 week in advance, last slot @ 8pm, res open @ midnight ?
-- Riverside Park (119 Street) = 2 : 2 Outdoor Hard courts, 1 week in advance, last slot @ 7pm, res open @ midnight ?, recently resurfaced
-- MCCarren = 11: 2 Outdoor Hard courts, 1 week in advance, last slot @ 6pm,
+- Central Park = 12 : Six Outdoor Har-Thru courts, 1 month is advance, last slot @ 7pm, res open @ 6am ?
+- Sutton East = 13: Two Inside Clay courts, 1 week in advance, last slot @ 8pm, res open @ midnight ?
+- Riverside Park (119 Street) = 2 : Two Outdoor Hard courts (recently resurfaced), 1 week in advance, last slot @ 7pm, res open @ midnight ?
+- MCCarren = 11: Two Outdoor Hard courts, 1 week in advance, last slot @ 6pm, , res open @ midnight ?
 
 
-References: [court_booker](https://github.com/danroche10/court_booker.git) 
+## References: [court_booker](https://github.com/danroche10/court_booker.git) 
