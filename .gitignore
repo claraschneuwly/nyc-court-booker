@@ -1,4 +1,13 @@
+# Environment & Dependencies
 .env
-.DS_Store
 venv/
+
+# macOS system files
+.DS_Store
+
+# Binary drivers
 chromedriver
+
+# Generated screenshots and logs
+*.png
+*.log
