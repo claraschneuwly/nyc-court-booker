@@ -125,3 +125,6 @@ This will:
 - Sutton East = 13: 2 Inside Clay courts, 1 week in advance, last slot @ 8pm, res open @ midnight ?
 - Riverside Park (119 Street) = 2 : 2 Outdoor Hard courts, 1 week in advance, last slot @ 7pm, res open @ midnight ?, recently resurfaced
 - MCCarren = 11: 2 Outdoor Hard courts, 1 week in advance, last slot @ 6pm,
+
+
+References: [court_booker](https://github.com/danroche10/court_booker.git) 
