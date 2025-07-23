@@ -4,7 +4,7 @@ This project is a Python automation bot using Selenium to book tennis courts on 
 
 
 ## Project Structure
-
+```
 .
 ├── app.py # Core booking logic and Selenium flows
 ├── weekly_court_scheduler.py # Scheduler script (runs every Tuesday at midnight)
@@ -12,7 +12,7 @@ This project is a Python automation bot using Selenium to book tennis courts on 
 ├── .gitignore # Ignores secrets, binaries, screenshots, logs
 ├── chromedriver # ChromeDriver binary (make sure it matches Chrome version)
 ├── requirements.txt # Python dependencies
-
+```
 
 ## Usage
 
