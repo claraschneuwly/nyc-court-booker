@@ -38,7 +38,7 @@ def booking_job():
     - Additionally attempts Central Park booking for a Saturday 29 days in the future.
     """
     today = datetime.today().date()
-    primary_date = today + timedelta(days=6)
+    primary_date = today + timedelta(days=7)
     saturday_date = today + timedelta(days=29)
 
     logger.info(
@@ -48,7 +48,7 @@ def booking_job():
     # Try booking 1 → 2 → 3
     booking_attempts = [
         {"target_loc": 13, "target_hour": 20},  # Sutton East Clay courts
-        {"target_loc": 2, "target_hour": 19},  # Riverside Park (119 Street)
+        # {"target_loc": 2, "target_hour": 19},  # Riverside Park (119 Street)
     ]
 
     for attempt in booking_attempts:

@@ -77,7 +77,7 @@ def click_first_available_slot_at_(
             if not elements:
                 logger.debug(f"No element found at {full_xpath}")
                 continue
-            reserve_button = WebDriverWait(browser, 5).until(
+            reserve_button = WebDriverWait(browser, 20).until(
                 EC.presence_of_element_located((By.XPATH, full_xpath))
             )
 
@@ -98,17 +98,17 @@ def click_first_available_slot_at_(
 
             # Wait for navigation and click "Confirm and Enter Player Details"
             continue_button_xpath = '//*[@id="no_account"]/div/input'
-            continue_button = WebDriverWait(browser, 10).until(
+            continue_button = WebDriverWait(browser, 20).until(
                 EC.element_to_be_clickable((By.XPATH, continue_button_xpath))
             )
             continue_button.click()
             logger.info("Clicked 'Confirm and Enter Player Details'")
             if target_loc == 12:
-                WebDriverWait(browser, 10).until(
+                WebDriverWait(browser, 15).until(
                     EC.presence_of_element_located((By.ID, "permit-number1"))
                 )
             elif target_loc == 11:
-                WebDriverWait(browser, 10).until(
+                WebDriverWait(browser, 15).until(
                     EC.presence_of_element_located((By.ID, "single_play_exist_2"))
                 )
 
@@ -145,7 +145,7 @@ def fill_out_player_details(browser):
         if not os.environ.get(var):
             raise EnvironmentError(f"Missing environment variable: {var}")
 
-    WebDriverWait(browser, 15).until(
+    WebDriverWait(browser, 20).until(
         EC.element_to_be_clickable((By.XPATH, "//*[@id='single_play_exist_2']"))
     ).click()  # click this option
     logger.info("Filling player name...")
@@ -241,7 +241,7 @@ def ensure_two_players_selected(browser):
         Exception: If the option is not found or not interactable.
     """
     try:
-        two_players_button = WebDriverWait(browser, 10).until(
+        two_players_button = WebDriverWait(browser, 15).until(
             EC.presence_of_element_located((By.XPATH, "//*[@id='num_players_2']"))
         )
         if not two_players_button.is_selected():
@@ -267,7 +267,7 @@ def click_continue_to_payment_button(browser):
     """
     logger.info("Clicking 'Continue to Payment'")
     try:
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, 15).until(
             EC.element_to_be_clickable(
                 (By.XPATH, "//*[@id='form_with_validation']/input[2]")
             )
@@ -292,22 +292,22 @@ def fill_out_payment_details(browser):
     logger.info("Starting to fill payment details")
     try:
         # Wait for the iframe to appear
-        iframe = WebDriverWait(browser, 20).until(
+        iframe = WebDriverWait(browser, 30).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "iframe.fancybox-iframe"))
         )
         logger.info("Iframe found, switching context...")
         browser.switch_to.frame(iframe)
         logger.info("Payment form visible")
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, 15).until(
             EC.element_to_be_clickable((By.XPATH, "//*[@id='cc_number']"))
         ).send_keys(os.environ.get("card-number"))
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, 15).until(
             EC.element_to_be_clickable((By.XPATH, "//*[@id='expdate_month']"))
         ).send_keys(os.environ.get("expiry-month"))
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, 15).until(
             EC.element_to_be_clickable((By.XPATH, "//*[@id='expdate_year']"))
         ).send_keys(os.environ.get("expiry-year"))
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, 15).until(
             EC.element_to_be_clickable((By.XPATH, "//*[@id='cvv2_number']"))
         ).send_keys(os.environ.get("cvv"))
         logger.info("Payment form filled")
@@ -322,7 +322,7 @@ def click_pay_now_button(browser):
     Args:
         browser (webdriver.Chrome): The active Selenium browser session.
     """
-    WebDriverWait(browser, 10).until(
+    WebDriverWait(browser, 15).until(
         EC.element_to_be_clickable((By.ID, "btn_pay_cc"))
     ).click()
     logger.info("Clicked Pay Now")
@@ -337,12 +337,12 @@ def activate_tab(browser, target_date):
         target_date (str): The booking date in YYYY-MM-DD format.
     """
     tab_xpath = f"//a[@href='#{target_date}' and @data-toggle='tab']"
-    tab = WebDriverWait(browser, 10).until(
+    tab = WebDriverWait(browser, 15).until(
         EC.element_to_be_clickable((By.XPATH, tab_xpath))
     )
     browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", tab)
     tab.click()
-    WebDriverWait(browser, 10).until(
+    WebDriverWait(browser, 15).until(
         EC.visibility_of_element_located((By.ID, target_date))
     )
     logger.info(f"Activated tab for {target_date}")
@@ -361,7 +361,7 @@ def handle_payment_confirmation(browser):
         browser.switch_to.default_content()
 
         # Wait for the iframe to disappear (Fancybox closes)
-        WebDriverWait(browser, 30).until(
+        WebDriverWait(browser, 40).until(
             EC.invisibility_of_element_located(
                 (By.CSS_SELECTOR, "iframe.fancybox-iframe")
             )
@@ -400,18 +400,24 @@ def attempt_court_booking(target_date, target_hour, target_loc):
     """
     service = Service("./chromedriver")
     browser = webdriver.Chrome(service=service)
-    browser.get(
-        f"https://www.nycgovparks.org/tennisreservation/availability/{target_loc}#{target_date}"
-    )
 
-    activate_tab(browser, target_date)
+    try:
+        browser.get(
+            f"https://www.nycgovparks.org/tennisreservation/availability/{target_loc}#{target_date}"
+        )
 
-    num_courts = 6 if target_loc == 12 else 2
-    court_available = click_first_available_slot_at_(
-        browser, target_date, target_hour, target_loc, num_courts
-    )
+        activate_tab(browser, target_date)
 
-    if court_available:
+        num_courts = 6 if target_loc == 12 else 2
+        court_available = click_first_available_slot_at_(
+            browser, target_date, target_hour, target_loc, num_courts
+        )
+
+        if not court_available:
+            # logger.info("No court was available to book.")
+            return False
+        
+        
         if target_loc == 12:  # CP
             ensure_two_players_selected(browser)
             fill_out_player_details_central_park(browser)
@@ -425,13 +431,16 @@ def attempt_court_booking(target_date, target_hour, target_loc):
         # Handle post-payment confirmation and success
         handle_payment_confirmation(browser)
 
-    else:
-        return
+        return True # Booking succeeded
+    
+    except Exception as e:
+        logger.exception(f"Exception during attempt_court_booking: {e}")
+        return False # means failure
 
 
 def book_court(target_date, target_hour, target_loc):
     """
-    Entry point wrapper that attempts a court booking and handles errors.
+    Entry point wrapper that attempts a court booking and returns success status.
 
     Args:
         target_date (str): The booking date in YYYY-MM-DD format.
@@ -441,13 +450,14 @@ def book_court(target_date, target_hour, target_loc):
     Returns:
         bool: True if booking succeeded, False otherwise.
     """
-    try:
-        attempt_court_booking(target_date, target_hour, target_loc)
-        return True
-    except Exception as ex:
-        logger.exception(f"Booking failed: {ex}")
-        # sys.exit(0)
-        return False
+    success = attempt_court_booking(target_date, target_hour, target_loc)
+    if success:
+        logger.info("Booking completed successfully.")
+    else:
+        logger.warning("Booking attempt failed.")
+    return success
 
-
-# book_court()
+# target_date = "2025-09-17"  # or dynamically compute next desired date
+# target_hour = 18 # Must be in 24-hour format (e.g. 19 for 7PM)
+# target_loc = 12
+# book_court(target_date, target_hour, target_loc)
