@@ -79,10 +79,4 @@ def booking_job():
             book_court(target_date=sat_date_str, target_hour=11, target_loc=12)
 
 
-# Schedule to run every Tuesday at 00:00 (i.e. Monday night -> Tuesday morning)
-schedule.every().monday.at("00:00").do(booking_job)
-
-logger.info("Scheduler is running...")
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+booking_job()
