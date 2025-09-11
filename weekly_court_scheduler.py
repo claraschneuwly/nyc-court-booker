@@ -48,7 +48,8 @@ def booking_job():
     # Try booking 1 → 2 → 3
     booking_attempts = [
         {"target_loc": 13, "target_hour": 20},  # Sutton East Clay courts
-        # {"target_loc": 2, "target_hour": 19},  # Riverside Park (119 Street)
+        {"target_loc": 13, "target_hour": 19},  # Sutton East Clay courts
+        {"target_loc": 2, "target_hour": 19},  # Riverside Park (119 Street)
     ]
 
     for attempt in booking_attempts:
@@ -79,7 +80,7 @@ def booking_job():
 
 
 # Schedule to run every Tuesday at 00:00 (i.e. Monday night -> Tuesday morning)
-schedule.every().tuesday.at("00:00").do(booking_job)
+schedule.every().monday.at("00:00").do(booking_job)
 
 logger.info("Scheduler is running...")
 while True:

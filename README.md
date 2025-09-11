@@ -103,8 +103,8 @@ This will:
 - Attempt bookings in order:
 
     1. Sutton East at 8 PM
-
-    2. Riverside Park at 7 PM
+    2. Sutton East at 7 PM
+    3. Riverside Park at 7 PM
 
 - Always attempt Central Park 29 days out if that day is a Saturday:
 
