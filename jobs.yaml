@@ -1,0 +1,39 @@
+# NYC Court Booker — Job Configuration
+#
+# Each job has:
+#   - cron_schedule: Cron expression (minute hour day-of-month month day-of-week)
+#   - days_ahead:    How many days in the future to book
+#   - attempts:      List of booking attempts (tried in order, stops at first success)
+#       - location:  Court location ID (see "Locations" below)
+#       - hour:      Desired hour in 24h format (e.g. 20 = 8PM)
+#
+# Locations:
+#   12 = Central Park (6 Outdoor Har-Tru courts, 1 month advance, res open @ 6am)
+#   13 = Sutton East  (2 Indoor Clay courts, 1 week advance, res open @ midnight)
+#    2 = Riverside Park 119 St (2 Outdoor Hard courts, 1 week advance, res open @ midnight)
+#   11 = McCarren     (2 Outdoor Hard courts, 1 week advance, res open @ midnight)
+
+jobs:
+  sutton:
+    cron_schedule: "0 0 * * 4"  # Wed midnight (Thu 00:00)
+    # cron_schedule: "35 11 * * 1"  # Mon 11:30AM
+    days_ahead: 7
+    attempts:
+      - location: 13
+        hour: 20       # 8PM
+      - location: 13
+        hour: 19       # 7PM
+
+  central-park-sat:
+    cron_schedule: "0 0 * * 5"  # Thu midnight (Fri 00:00)
+    days_ahead: 29
+    attempts:
+      - location: 12
+        hour: 16       # 4PM
+
+  central-park-sun:
+    cron_schedule: "0 0 * * 6"  # Fri midnight (Sat 00:00)
+    days_ahead: 29
+    attempts:
+      - location: 12
+        hour: 17       # 5PM

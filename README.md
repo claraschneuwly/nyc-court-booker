@@ -7,7 +7,9 @@ This project is a Python automation bot using Selenium to book tennis courts on 
 ```
 .
 ├── app.py # Core booking logic and Selenium flows
-├── weekly_court_scheduler.py # Scheduler script (runs every Tuesday at midnight)
+├── weekly_court_scheduler.py # Scheduler script (config-driven, runs via cron)
+├── jobs.yaml # Job configuration (locations, hours, schedules)
+├── setup_cron.sh # Script to install/remove cron jobs (reads jobs.yaml)
 ├── .env # Environment variables (not tracked in Git)
 ├── .gitignore # Ignores secrets, binaries, screenshots, logs
 ├── chromedriver # ChromeDriver binary (make sure it matches Chrome version)
@@ -90,33 +92,114 @@ chmod +x ./chromedriver
 python app.py
 ```
 
-- Run the weekly scheduler
+- Run individual jobs manually (for testing)
 
 ```bash
-python weekly_court_scheduler.py
+python weekly_court_scheduler.py sutton
+python weekly_court_scheduler.py central-park-sat
+python weekly_court_scheduler.py central-park-sun
 ```
 
-This will: 
+### 5. Configure jobs
 
-- Run every Monday at midnight (i.e., 12:00 AM on Tuesday)
+All booking jobs are defined in `jobs.yaml`. Edit this file to change locations, hours, days offset, or cron schedules — no Python code changes needed.
 
-- Attempt bookings in order:
+```yaml
+jobs:
+  sutton:
+    cron_schedule: "0 0 * * 4"  # Wed midnight (Thu 00:00)
+    days_ahead: 7
+    attempts:
+      - location: 13   # Sutton East
+        hour: 20        # 8PM
+      - location: 13
+        hour: 19        # 7PM (fallback)
 
-    1. Sutton East at 8 PM
-    2. Sutton East at 7 PM
-    3. Riverside Park at 7 PM
+  central-park-sat:
+    cron_schedule: "0 0 * * 6"  # Fri midnight (Sat 00:00)
+    days_ahead: 29
+    attempts:
+      - location: 12   # Central Park
+        hour: 16        # 4PM
 
-- Always attempt Central Park 29 days out if that day is a Saturday:
+  central-park-sun:
+    cron_schedule: "0 0 * * 0"  # Sat midnight (Sun 00:00)
+    days_ahead: 29
+    attempts:
+      - location: 12   # Central Park
+        hour: 17        # 5PM
+```
 
-    1. First try 4 PM
+To add a new job, just add another entry under `jobs:` and re-run `./setup_cron.sh install`.
 
-    2. If unavailable, try 11 AM
+### 6. Set up the cron jobs
 
-## Debbugging and Deployment
+The setup script reads `jobs.yaml` and installs a cron entry for each job. No continuously running process is needed.
 
-- Screenshots  of booking attempts are saved as `*.png` for debugging 
-- Logs are saved to `scheduler.log` for review
-- To run this as a persistent job, consider setting up as a cron job or using a process manager (e.g. pm2, systemd) if running on a server
+#### Option A: Using the setup script (Recommended)
+
+```bash
+# Install cron jobs (reads from jobs.yaml)
+./setup_cron.sh install
+
+# View current cron jobs
+./setup_cron.sh view
+
+# Check status
+./setup_cron.sh status
+
+# Remove all cron jobs
+./setup_cron.sh remove
+```
+
+After editing `jobs.yaml`, run `./setup_cron.sh remove` then `./setup_cron.sh install` to apply changes.
+
+#### Option B: Manual cron setup
+
+Open your crontab with `crontab -e` and add entries matching your `jobs.yaml` (adjust paths as needed):
+
+```bash
+0 0 * * 4 cd /path/to/nyc-court-booker && /path/to/venv/bin/python weekly_court_scheduler.py sutton >> /path/to/nyc-court-booker/cron.log 2>> /path/to/nyc-court-booker/cron_error.log
+0 0 * * 6 cd /path/to/nyc-court-booker && /path/to/venv/bin/python weekly_court_scheduler.py central-park-sat >> /path/to/nyc-court-booker/cron.log 2>> /path/to/nyc-court-booker/cron_error.log
+0 0 * * 0 cd /path/to/nyc-court-booker && /path/to/venv/bin/python weekly_court_scheduler.py central-park-sun >> /path/to/nyc-court-booker/cron.log 2>> /path/to/nyc-court-booker/cron_error.log
+```
+
+### 7. Keep your Mac awake for cron jobs
+
+Cron jobs only run if your computer is awake. If your Mac is asleep or shut down at the scheduled time, the job is silently skipped.
+To ensure your Mac wakes up before the cron jobs fire at midnight, run this once:
+
+```bash
+sudo pmset repeat wakeorpoweron MTWRFSU 23:55:00
+```
+
+This tells macOS to wake (or power on) your Mac at 23:55 every night, giving it 5 minutes to reconnect to WiFi before the midnight cron jobs run.
+
+**Requirements:**
+- Your Mac must be **plugged into power**
+- Lid can be closed (sleep is fine)
+- Do **not** shut down the Mac — sleep mode is required
+
+To verify the schedule is set:
+
+```bash
+pmset -g sched
+```
+
+To cancel it:
+
+```bash
+sudo pmset repeat cancel
+```
+
+## Debugging and Deployment
+
+- Screenshots of booking attempts are saved as `*.png` for debugging 
+- Application logs are saved to `scheduler.log` for review
+- Cron job output is logged to `cron.log` (stdout) and `cron_error.log` (stderr)
+- The script runs automatically via cron job - no need to keep it running continuously
+- To verify the cron job is installed, run: `crontab -l`
+- To test a job manually, run: `python weekly_court_scheduler.py sutton` (or `central-park-sat`, `central-park-sun`)
 
 
 ## Relevant info about the courts
