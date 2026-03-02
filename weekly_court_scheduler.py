@@ -1,28 +1,35 @@
 """
-This script runs a scheduled job every Tuesday at 00:00 AM (midnight Monday into Tuesday)
-to automatically book tennis courts through the NYC Parks reservation system.
+Cron-based scheduler for booking NYC Parks tennis courts.
 
-It attempts booking in the following order:
-1. Sutton East (target_loc=13) at 8PM
-2. Riverside Park (target_loc=2) at 7PM
+All job definitions (locations, hours, days offset, cron schedules) are loaded
+from jobs.yaml. Each cron job calls this script with a job name:
 
-Additionally, if the Saturday 29 days from today is indeed a Saturday, it will also try to book
-Central Park (target_loc=12) at 4PM, falling back to 11AM if that fails.
+    python weekly_court_scheduler.py <job_name>
+
+The script looks up that job in jobs.yaml and executes the booking attempts
+in order, stopping at the first success.
 
 Dependencies:
-- schedule
+- PyYAML
 - app.py (must contain a `book_court(target_date, target_hour, target_loc)` function)
 """
 
-import schedule
-import time
+import os
+import sys
 import logging
 from datetime import datetime, timedelta
+
+import yaml
+
 from app import book_court
+
+# Paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "jobs.yaml")
 
 # Configure logging
 logging.basicConfig(
-    filename="scheduler.log",  # Log file name
+    filename=os.path.join(SCRIPT_DIR, "scheduler.log"),
     level=logging.INFO,
     format="%(asctime)s — %(levelname)s — %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -30,59 +37,88 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def booking_job():
-    """
-    Executes the weekly booking routine.
+def load_config():
+    """Load and validate jobs.yaml, returning the jobs dict."""
+    if not os.path.exists(CONFIG_PATH):
+        logger.error(f"Config file not found: {CONFIG_PATH}")
+        print(f"Error: Config file not found: {CONFIG_PATH}")
+        sys.exit(2)
 
-    - Books courts for the upcoming weekend (6 days ahead) with fallback options.
-    - Additionally attempts Central Park booking for a Saturday 29 days in the future.
+    with open(CONFIG_PATH, "r") as f:
+        config = yaml.safe_load(f)
+
+    if not config or "jobs" not in config:
+        logger.error("Config file is empty or missing 'jobs' key.")
+        print("Error: jobs.yaml must contain a 'jobs' key.")
+        sys.exit(2)
+
+    return config["jobs"]
+
+
+def run_job(job_name, job_config):
     """
+    Execute a single booking job based on its YAML config.
+
+    Args:
+        job_name (str): Name of the job (for logging).
+        job_config (dict): Job definition with keys: days_ahead, attempts.
+    """
+    days_ahead = job_config["days_ahead"]
+    attempts = job_config["attempts"]
+
     today = datetime.today().date()
-    primary_date = today + timedelta(days=7)
-    saturday_date = today + timedelta(days=29)
+    target_date = today + timedelta(days=days_ahead)
+    date_str = target_date.strftime("%Y-%m-%d")
 
-    logger.info(
-        f"Running weekly booking job for primary_date={primary_date} and saturday_date={saturday_date}"
-    )
+    logger.info(f"[{job_name}] Booking for {date_str} ({days_ahead} days ahead)")
 
-    # Try booking 1 → 2 → 3
-    booking_attempts = [
-        {"target_loc": 13, "target_hour": 20},  # Sutton East Clay courts
-        {"target_loc": 13, "target_hour": 19},  # Sutton East Clay courts
-        {"target_loc": 2, "target_hour": 19},  # Riverside Park (119 Street)
-    ]
+    for i, attempt in enumerate(attempts, 1):
+        location = attempt["location"]
+        hour = attempt["hour"]
 
-    for attempt in booking_attempts:
         logger.info(
-            f"Trying booking at loc={attempt['target_loc']} at {attempt['target_hour']}:00 on {primary_date}"
+            f"[{job_name}] Attempt {i}/{len(attempts)}: "
+            f"location={location}, hour={hour}:00, date={date_str}"
         )
+
         success = book_court(
-            target_date=primary_date.strftime("%Y-%m-%d"),
-            target_hour=attempt["target_hour"],
-            target_loc=attempt["target_loc"],
+            target_date=date_str,
+            target_hour=hour,
+            target_loc=location,
         )
+
         if success:
-            logger.info(f"Successfully booked: {attempt}")
-            break
+            logger.info(
+                f"[{job_name}] Successfully booked location={location} "
+                f"at {hour}:00 on {date_str}"
+            )
+            return
         else:
-            logger.warning(f"Failed to book: {attempt}")
+            logger.warning(
+                f"[{job_name}] Failed to book location={location} "
+                f"at {hour}:00 on {date_str}"
+            )
 
-    # Always try booking Central Park on Saturdays
-    if saturday_date.weekday() == 5:  # 5 = Saturday
-        sat_date_str = saturday_date.strftime("%Y-%m-%d")
-        logger.info(f"Attempting Central Park Saturday slot on {sat_date_str}")
-
-        # First try 16:00
-        success = book_court(target_date=sat_date_str, target_hour=16, target_loc=12)
-        if not success:
-            logger.warning("16:00 booking failed. Trying 11:00")
-            book_court(target_date=sat_date_str, target_hour=11, target_loc=12)
+    logger.warning(f"[{job_name}] All {len(attempts)} booking attempt(s) failed.")
 
 
-# Schedule to run every Tuesday at 00:00 (i.e. Monday night -> Tuesday morning)
-schedule.every().monday.at("00:00").do(booking_job)
+if __name__ == "__main__":
+    jobs = load_config()
+    valid_jobs = list(jobs.keys())
 
-logger.info("Scheduler is running...")
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+    if len(sys.argv) != 2 or sys.argv[1] not in valid_jobs:
+        print(f"Usage: python {sys.argv[0]} <job_name>")
+        print(f"Valid jobs (from jobs.yaml): {', '.join(valid_jobs)}")
+        sys.exit(2)
+
+    job_name = sys.argv[1]
+    job_config = jobs[job_name]
+
+    try:
+        logger.info(f"Starting job: {job_name}")
+        run_job(job_name, job_config)
+        logger.info(f"Job '{job_name}' completed.")
+        sys.exit(0)
+    except Exception as e:
+        logger.exception(f"Job '{job_name}' failed with error: {e}")
+        sys.exit(1)
