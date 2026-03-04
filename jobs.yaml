@@ -15,8 +15,8 @@
 
 jobs:
   sutton:
-    cron_schedule: "0 0 * * 4"  # Wed midnight (Thu 00:00)
-    # cron_schedule: "35 11 * * 1"  # Mon 11:30AM
+    # cron_schedule: "0 0 * * 4"  # Wed midnight (Thu 00:00)
+    cron_schedule: "48 15 * * 3"  # Mon 11:30AM
     days_ahead: 7
     attempts:
       - location: 13
@@ -25,14 +25,14 @@ jobs:
         hour: 19       # 7PM
 
   central-park-sat:
-    cron_schedule: "0 0 * * 5"  # Thu midnight (Fri 00:00)
+    cron_schedule: "0 7 * * 5"  # Thu 7AM
     days_ahead: 29
     attempts:
       - location: 12
         hour: 16       # 4PM
 
   central-park-sun:
-    cron_schedule: "0 0 * * 6"  # Fri midnight (Sat 00:00)
+    cron_schedule: "0 7 * * 6"  # Fri 7AM
     days_ahead: 29
     attempts:
       - location: 12
