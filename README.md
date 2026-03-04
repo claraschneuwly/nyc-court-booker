@@ -13,6 +13,7 @@ This project is a Python automation bot using Selenium to book tennis courts on 
 ├── .env # Environment variables (not tracked in Git)
 ├── .gitignore # Ignores secrets, binaries, screenshots, logs
 ├── chromedriver # ChromeDriver binary (make sure it matches Chrome version)
+├── notifier.py # Telegram notifications (phone alerts)
 ├── requirements.txt # Python dependencies
 ```
 
@@ -40,6 +41,13 @@ card-number=4111111111111111
 expiry-month=12
 expiry-year=2025
 cvv=123
+```
+
+To enable phone notifications (see step 8), also add:
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_CHAT_ID=987654321
 ```
 
 Note: Never commit your `.env` to version control.
@@ -191,6 +199,32 @@ To cancel it:
 ```bash
 sudo pmset repeat cancel
 ```
+
+### 8. Phone notifications (Telegram)
+
+The bot sends real-time notifications to your phone via Telegram after every cron job run. No polling or checking logs manually.
+
+#### What you'll receive
+
+| Event | Message |
+|---|---|
+| Court booked | ✅ **Court booked!** Sutton East, 8:00 PM on 2026-03-11 |
+| All attempts failed | ❌ **Booking failed** — All 2 attempt(s) failed for 2026-03-11 |
+| Bot crash / exception | ⚠️ **Bot error** — Job `sutton` crashed: TimeoutException... |
+
+#### Setup
+
+1. Open Telegram and message [@BotFather](https://t.me/BotFather). Send `/newbot` and follow the prompts to create a bot. Save the **bot token** it gives you.
+2. Find your new bot by its username and send it any message (e.g. `hello`).
+3. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser. Find your **chat ID** at `result[0].message.chat.id`.
+4. Add both values to your `.env` file:
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_CHAT_ID=987654321
+```
+
+Notifications are sent from `notifier.py` and called automatically by `weekly_court_scheduler.py`. No new dependencies are required (uses Python's built-in `urllib`). If the Telegram API is unreachable, the bot logs a warning and continues — it will never fail a booking because of a notification error.
 
 ## Debugging and Deployment
 

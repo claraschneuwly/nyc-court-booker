@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 import yaml
 
 from app import book_court
+from notifier import notify_booking_success, notify_booking_failure, notify_bot_error
 
 # Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -92,7 +93,8 @@ def run_job(job_name, job_config):
                 f"[{job_name}] Successfully booked location={location} "
                 f"at {hour}:00 on {date_str}"
             )
-            return
+            notify_booking_success(job_name, location, hour, date_str)
+            return True
         else:
             logger.warning(
                 f"[{job_name}] Failed to book location={location} "
@@ -100,6 +102,8 @@ def run_job(job_name, job_config):
             )
 
     logger.warning(f"[{job_name}] All {len(attempts)} booking attempt(s) failed.")
+    notify_booking_failure(job_name, len(attempts), date_str)
+    return False
 
 
 if __name__ == "__main__":
@@ -116,9 +120,10 @@ if __name__ == "__main__":
 
     try:
         logger.info(f"Starting job: {job_name}")
-        run_job(job_name, job_config)
-        logger.info(f"Job '{job_name}' completed.")
-        sys.exit(0)
+        success = run_job(job_name, job_config)
+        logger.info(f"Job '{job_name}' completed. Success: {success}")
+        sys.exit(0 if success else 1)
     except Exception as e:
         logger.exception(f"Job '{job_name}' failed with error: {e}")
+        notify_bot_error(job_name, e)
         sys.exit(1)
