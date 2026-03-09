@@ -1,13 +1,30 @@
-# Environment & Dependencies
-.env
-venv/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
 
-# macOS system files
-.DS_Store
+# Virtual environments
+venv/
+venvclean/
+.venv/
+
+# Secrets
+.env
 
 # Binary drivers
 chromedriver
 
-# Generated screenshots and logs
-*.png
+# Generated runtime artefacts
+screenshots/
 *.log
+
+# macOS system files
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
