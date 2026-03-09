@@ -16,7 +16,7 @@
 jobs:
   sutton:
     # cron_schedule: "0 0 * * 4"  # Wed midnight (Thu 00:00)
-    cron_schedule: "48 15 * * 3"  # Mon 11:30AM
+    cron_schedule: "43 16 * * 1"  # Mon 11:30AM
     days_ahead: 7
     attempts:
       - location: 13
